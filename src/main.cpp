@@ -4,10 +4,10 @@ using boost::asio::ip::tcp;
 
 void sigintHandler(int signum)
 {
+    system("clear");
     std::cout << "Interrupt signal (" << signum << ") received.\n";
-    std::cout << "\033[?47l\n";
+    std::cout << "\033[?47l";
     std::cout << "\033[u";
-    
     std::cout.flush();
 
     exit(0);
@@ -35,7 +35,8 @@ void display_cur_time(std::chrono::_V2::system_clock::time_point& start_time, in
     auto cur_time_str = std::ctime(&time_t_time);
         cur_time_str = strtok(cur_time_str, "\n");
 
-    std::cout << "\033[" << rownum++ << ";0H" << cur_time_str << "\033[" << rownum++ << ";0H" \
+    std::cout << "\033[" << rownum++ << ";0H" << cur_time_str \
+                    << "\033[" << rownum++ << ";0H" \
                     << days_since << " days, " \
                     << hours_since << " hours, " \
                     << min_since << " minutes, " \
@@ -49,12 +50,8 @@ std::string list_docker_images()
     // {
         // unix:///var/run/docker.sock
         auto sockAddress = std::string("/var/run/docker.sock");
-
         boost::asio::io_service io_service;
-        
         boost::asio::local::stream_protocol::socket socket(io_service);
-
-
         socket.connect(sockAddress.c_str());
 
         boost::asio::streambuf request;
@@ -107,18 +104,14 @@ std::string list_docker_images()
         std::string header;
         while (std::getline(response_stream, header) && header != "\r")
         {
-            std::cout << header << "\n";
+            // std::cout << header << "\n";
         }
-
-        std::cout << "\n";
 
         // Write whatever content we already have to output.
         if (response.size() > 0)
         {
-            // std::cout << &response;
             std::stringstream tmp_stream;
             tmp_stream << &response;
-            std::cout << tmp_stream.str();
             resp_str.append(tmp_stream.str());
         }
 
@@ -126,10 +119,8 @@ std::string list_docker_images()
         boost::system::error_code error;
         while (boost::asio::read(socket, response,boost::asio::transfer_at_least(1), error))
         {
-            // std::cout << &response;
             std::stringstream tmp_stream;
             tmp_stream << &response;
-            std::cout << tmp_stream.str();
             resp_str.append(tmp_stream.str());
         }
 
@@ -138,7 +129,7 @@ std::string list_docker_images()
               throw boost::system::system_error(error);
         }
         return resp_str;
-    
+        
 }
 
 void display_img_list(const nlohmann::json& json_imgs, int& rownum)
@@ -167,6 +158,16 @@ void display_img_list(const nlohmann::json& json_imgs, int& rownum)
 int main()
 {
 
+    auto start_time = std::chrono::high_resolution_clock().now();
+    std::cout << "\033[s";
+    std::cout.flush();
+    
+    std::cout << "\033[?47h";
+    std::cout.flush();
+    
+    system("clear");
+    std::cout.flush();
+
     auto docker_imgs = list_docker_images();
     if(docker_imgs.starts_with("FAILED"))
     {
@@ -181,12 +182,6 @@ int main()
     // exit(0);
     signal(SIGINT, sigintHandler);
 
-    auto start_time = std::chrono::high_resolution_clock().now();
-    std::cout << "\033[?47h";
-    std::cout << "\033[s";
-    std::cout.flush();
-    system("clear");
-    std::cout.flush();
 
     
     while(true)
