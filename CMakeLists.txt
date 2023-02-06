@@ -11,4 +11,4 @@ add_executable(
   src/main.cpp
 )
 
-target_link_libraries(${PROJECT_NAME} ${CURSES_LIBRARY})
+target_link_libraries(${PROJECT_NAME} ${CURSES_LIBRARIES})

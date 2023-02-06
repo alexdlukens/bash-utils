@@ -158,7 +158,7 @@ std::string list_docker_images()
 
 }
 
-void display_img_list(const nlohmann::json& json_imgs, int& rownum)
+void display_img_list(WINDOW* win,const nlohmann::json& json_imgs, int& rownum)
 {
     std::set<std::string> repo_tags;
     for(auto elem : json_imgs)
@@ -176,10 +176,20 @@ void display_img_list(const nlohmann::json& json_imgs, int& rownum)
     rownum++;
     for(auto& str : repo_tags)
     {
-        std::cout << "\033[" << rownum++ << ";0H" << str;
+        // std::cout << "\033[" << rownum++ << ";0H" << str;
+       mvwprintw(win, rownum++, 1, "%s", str.c_str());
     }
-    std::cout << "\033[0;0H";
+    wrefresh(win);
+}
 
+void setup_docker_box(WINDOW* win)
+{
+    std::string di_header = "DOCKER IMAGES";
+    box(win, 0, 0);
+    wattr_on(win, A_STANDOUT, NULL);
+    mvwprintw(win, 0, 0, "%s", di_header.c_str());
+    wattr_off(win, A_STANDOUT, NULL);
+    wrefresh(win);
 }
 
 int main()
@@ -223,7 +233,17 @@ int main()
     int rows, cols;
     getmaxyx(stdscr,rows,cols);
 
+    WINDOW *docker_window;
+    int startx, starty, width, height;
+    startx = 3;
+    starty = 3;
+    width = cols - 5;
+    height = rows - 10;
 
+    docker_window = newwin(height, width, starty, startx);
+    
+    
+    timeout(50);
     while(true)
     {
         // clear();
@@ -231,12 +251,19 @@ int main()
         if(resized)
         {
             clear();
+            delwin(docker_window);
             getmaxyx(stdscr,rows,cols);
+            docker_window = newwin(rows-10, cols-5, starty, startx);
         }
         display_cur_time(start_time);
         display_row_col();
+        
+        int rownum=1;
+        setup_docker_box(docker_window);
+        display_img_list(docker_window, json_imgs, rownum);
         refresh();
-        nanosleep(&hund_sleep, &hund_sleep);
+        char input = getch();
+        
     }
 	
     endwin();
