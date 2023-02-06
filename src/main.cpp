@@ -4,6 +4,7 @@ using boost::asio::ip::tcp;
 
 void sigintHandler(int signum)
 {
+    endwin();			/* End curses mode		  */
     system("clear");
     std::cout << "Interrupt signal (" << signum << ") received.\n";
     std::cout << "\033[?47l";
@@ -14,7 +15,7 @@ void sigintHandler(int signum)
 }
 
 
-void display_cur_time(std::chrono::_V2::system_clock::time_point& start_time, int& rownum)
+void display_cur_time(std::chrono::_V2::system_clock::time_point& start_time)
 {
 
     auto cur_time = std::chrono::high_resolution_clock().now();
@@ -22,6 +23,8 @@ void display_cur_time(std::chrono::_V2::system_clock::time_point& start_time, in
     auto hhmmss = std::chrono::hh_mm_ss(cur_time - start_time);
     auto time_t_time = std::chrono::system_clock::to_time_t(cur_time);
     
+    
+    // std::cout << w.ws_row << ", " << w.ws_col << "\n";
     
     char days_since[3];
     char hours_since[3];
@@ -35,20 +38,43 @@ void display_cur_time(std::chrono::_V2::system_clock::time_point& start_time, in
     auto cur_time_str = std::ctime(&time_t_time);
         cur_time_str = strtok(cur_time_str, "\n");
 
-    std::cout << "\033[" << rownum++ << ";0H" << cur_time_str \
-                    << "\033[" << rownum++ << ";0H" \
-                    << days_since << " days, " \
-                    << hours_since << " hours, " \
-                    << min_since << " minutes, " \
-                    << sec_since << " seconds since starting";
-    std::cout.flush();
+    // std::cout << "\033[" << rownum++ << ";0H" << cur_time_str \
+    //                 << "\033[" << rownum++ << ";0H" \
+    //                 << days_since << " days, " \
+    //                 << hours_since << " hours, " \
+    //                 << min_since << " minutes, " \
+    //                 << sec_since << " seconds since starting";
+
+    std::string time_since_string = std::string(days_since) + " days, " \
+                    + hours_since + " hours, " \
+                    + min_since + " minutes, " \
+                    + sec_since + " seconds since starting";
+                    
+    // std::cout << "\033[0;0H";
+    // std::cout.flush();
+
+    mvprintw(0,0, "%s", cur_time_str);
+    mvprintw(1,0, "%s", time_since_string.c_str());
+
+}
+
+void display_row_col()
+{
+    // get terminal size
+    int rows, cols;
+    getmaxyx(stdscr,rows,cols);
+
+    std::string row_msg = "Rows: " + std::to_string(rows);
+    std::string col_msg = "Cols: " + std::to_string(cols);
+    // display row, col data
+    attron(A_STANDOUT);
+    mvprintw(0,cols-row_msg.size(), "%s", row_msg.c_str());
+    mvprintw(1,cols-col_msg.size(), "%s", col_msg.c_str());
+    attroff(A_STANDOUT);
 }
 
 std::string list_docker_images()
 {
-    // try
-    // {
-        // unix:///var/run/docker.sock
         auto sockAddress = std::string("/var/run/docker.sock");
         boost::asio::io_service io_service;
         boost::asio::local::stream_protocol::socket socket(io_service);
@@ -129,7 +155,7 @@ std::string list_docker_images()
               throw boost::system::system_error(error);
         }
         return resp_str;
-        
+
 }
 
 void display_img_list(const nlohmann::json& json_imgs, int& rownum)
@@ -152,21 +178,30 @@ void display_img_list(const nlohmann::json& json_imgs, int& rownum)
     {
         std::cout << "\033[" << rownum++ << ";0H" << str;
     }
+    std::cout << "\033[0;0H";
 
 }
 
 int main()
 {
-
+    
     auto start_time = std::chrono::high_resolution_clock().now();
+
+    // save cursor position and terminal output
     std::cout << "\033[s";
     std::cout.flush();
-    
+
     std::cout << "\033[?47h";
     std::cout.flush();
-    
+
     system("clear");
     std::cout.flush();
+
+    // add sigint handler to restore cursor pos and terminal output
+    signal(SIGINT, sigintHandler);
+    initscr();
+
+    
 
     auto docker_imgs = list_docker_images();
     if(docker_imgs.starts_with("FAILED"))
@@ -177,23 +212,33 @@ int main()
     // std::cout << "output: " << docker_imgs << '\n';
 
     nlohmann::json json_imgs = nlohmann::json::parse(docker_imgs);
-    // std::cout << json_imgs.dump(1);
-
-    // exit(0);
-    signal(SIGINT, sigintHandler);
 
 
-    
+    int ch;
+    struct timespec hund_sleep;
+    hund_sleep.tv_nsec = 1000 * 1000 * 1000;
+    hund_sleep.tv_sec = 1.0/100;
+
+    // get terminal size before main loop
+    int rows, cols;
+    getmaxyx(stdscr,rows,cols);
+
+
     while(true)
     {
-        system("clear");
-        std::cout.flush();
-        int rownum = 1;
-        display_cur_time(start_time, rownum);
-        display_img_list(json_imgs, rownum);
-        sleep(1);
+        // clear();
+        bool resized = is_term_resized(rows, cols);
+        if(resized)
+        {
+            clear();
+            getmaxyx(stdscr,rows,cols);
+        }
+        display_cur_time(start_time);
+        display_row_col();
+        refresh();
+        nanosleep(&hund_sleep, &hund_sleep);
     }
-    
-    
+	
+    endwin();
     return 0;
 }
