@@ -38,23 +38,12 @@ void display_cur_time(std::chrono::_V2::system_clock::time_point& start_time)
     auto cur_time_str = std::ctime(&time_t_time);
         cur_time_str = strtok(cur_time_str, "\n");
 
-    // std::cout << "\033[" << rownum++ << ";0H" << cur_time_str \
-    //                 << "\033[" << rownum++ << ";0H" \
-    //                 << days_since << " days, " \
-    //                 << hours_since << " hours, " \
-    //                 << min_since << " minutes, " \
-    //                 << sec_since << " seconds since starting";
-
     std::string time_since_string = std::string(days_since) + " days, " \
                     + hours_since + " hours, " \
                     + min_since + " minutes, " \
                     + sec_since + " seconds since starting";
                     
-    // std::cout << "\033[0;0H";
-    // std::cout.flush();
-
     mvprintw(0,0, "%s", cur_time_str);
-    mvprintw(1,0, "%s", time_since_string.c_str());
 
 }
 
@@ -68,12 +57,12 @@ void display_row_col()
     std::string col_msg = "Cols: " + std::to_string(cols);
     // display row, col data
     attron(A_STANDOUT);
-    mvprintw(0,cols-row_msg.size(), "%s", row_msg.c_str());
-    mvprintw(1,cols-col_msg.size(), "%s", col_msg.c_str());
+    mvprintw(0,cols-row_msg.size()-col_msg.size() - 1, "%s", row_msg.c_str());
+    mvprintw(0,cols-col_msg.size(), "%s", col_msg.c_str());
     attroff(A_STANDOUT);
 }
 
-std::string list_docker_images()
+std::string call_docker_cmd(std::string url_path)
 {
         auto sockAddress = std::string("/var/run/docker.sock");
         boost::asio::io_service io_service;
@@ -83,7 +72,7 @@ std::string list_docker_images()
         boost::asio::streambuf request;
         std::ostream req_stream(&request);
 
-        req_stream << "GET " <<  "http://localhost/v1.42/images/json" << " HTTP/1.0\r\n";  // note that you can change it if you wish to HTTP/1.0
+        req_stream << "GET " <<  "http://localhost" << url_path << " HTTP/1.0\r\n";  // note that you can change it if you wish to HTTP/1.0
         req_stream << "Host: " << "localhost" << "\r\n";
         req_stream << "Accept: */*\r\n";
         req_stream << "Connection: close\r\n\r\n";
@@ -182,14 +171,54 @@ void display_img_list(WINDOW* win,const nlohmann::json& json_imgs, int& rownum)
     wrefresh(win);
 }
 
-void setup_docker_box(WINDOW* win)
+void setup_docker_box(WINDOW* win, char selected_tab)
 {
-    std::string di_header = "DOCKER IMAGES";
+    std::string images_header = "IMAGES";
+    std::string containers_header = "CONTAINERS";
+    std::string stats_header = "STATS";
+
+    int image_offset = containers_header.size() + 1;
+    int stats_offset = image_offset + images_header.size() + 1;
+
     box(win, 0, 0);
-    wattr_on(win, A_STANDOUT, NULL);
-    mvwprintw(win, 0, 0, "%s", di_header.c_str());
+
+    // setup tabs
+    // wattr_on(win, A_STANDOUT, NULL);
     wattr_off(win, A_STANDOUT, NULL);
+    mvwprintw(win, 0, 0, "%s", containers_header.c_str());
+    mvwprintw(win, 0, image_offset, "%s", images_header.c_str());
+    mvwprintw(win, 0, stats_offset, "%s", stats_header.c_str());
+
+    // std::cerr << int(selected_tab) << '\n';
+    switch(selected_tab)
+    {
+        case 'i':
+            wattr_on(win, A_STANDOUT, NULL);
+            mvwprintw(win, 0, image_offset, "%s", images_header.c_str());
+            wattr_off(win, A_STANDOUT, NULL);
+            break;
+        case 'c':
+            wattr_on(win, A_STANDOUT, NULL);
+            mvwprintw(win, 0, 0, "%s", containers_header.c_str());
+            wattr_off(win, A_STANDOUT, NULL);
+            break;
+        case 's':
+            wattr_on(win, A_STANDOUT, NULL);
+            mvwprintw(win, 0, stats_offset, "%s", stats_header.c_str());
+            wattr_off(win, A_STANDOUT, NULL);
+            break;
+    }
+    // wattr_off(win, A_STANDOUT, NULL);
     wrefresh(win);
+}
+
+void display_img_panel()
+{
+    
+}
+void display_cont_panel()
+{
+
 }
 
 int main()
@@ -213,7 +242,7 @@ int main()
 
     
 
-    auto docker_imgs = list_docker_images();
+    auto docker_imgs = call_docker_cmd("/v1.42/images/json");
     if(docker_imgs.starts_with("FAILED"))
     {
         std::cout << "received error from list docker images: " << docker_imgs;
@@ -233,20 +262,22 @@ int main()
     int rows, cols;
     getmaxyx(stdscr,rows,cols);
 
+    
     WINDOW *docker_window;
     int startx, starty, width, height;
     startx = 3;
-    starty = 3;
+    starty = 2;
     width = cols - 5;
     height = rows - 10;
 
     docker_window = newwin(height, width, starty, startx);
     
+    char selected_tab = '\n';
     
     timeout(50);
     while(true)
     {
-        // clear();
+        // when terminal is resized, we need to react accordingly
         bool resized = is_term_resized(rows, cols);
         if(resized)
         {
@@ -258,8 +289,12 @@ int main()
         display_cur_time(start_time);
         display_row_col();
         
+        char new_ch = getch();
+        std::vector<char> accepted_vals = {'c','i','s'};
+        if(std::count(accepted_vals.begin(), accepted_vals.end(), new_ch)) selected_tab = new_ch;
+        
         int rownum=1;
-        setup_docker_box(docker_window);
+        setup_docker_box(docker_window, selected_tab);
         display_img_list(docker_window, json_imgs, rownum);
         refresh();
         char input = getch();
