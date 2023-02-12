@@ -21,5 +21,5 @@ std::string call_docker_cmd(std::string url_path);
 void display_img_list(WINDOW* win, const nlohmann::json& json_imgs, int& rownum);
 void display_row_col();
 void setup_docker_box(WINDOW* win, char selected_tab);
-void display_img_panel();
+void display_img_panel(WINDOW* win, int rownum);
 void display_cont_panel();

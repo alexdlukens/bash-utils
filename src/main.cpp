@@ -196,6 +196,8 @@ void setup_docker_box(WINDOW* win, char selected_tab)
             wattr_on(win, A_STANDOUT, NULL);
             mvwprintw(win, 0, image_offset, "%s", images_header.c_str());
             wattr_off(win, A_STANDOUT, NULL);
+            display_img_panel(win, 1);
+            
             break;
         case 'c':
             wattr_on(win, A_STANDOUT, NULL);
@@ -212,9 +214,24 @@ void setup_docker_box(WINDOW* win, char selected_tab)
     wrefresh(win);
 }
 
-void display_img_panel()
+void display_img_panel(WINDOW* win, int rownum)
 {
-    
+    try
+    {
+        auto docker_imgs = call_docker_cmd("/v1.42/images/json");
+        if(docker_imgs.starts_with("FAILED"))
+        {
+            std::cout << "received error from list docker images: " << docker_imgs;
+            return;
+        }
+        nlohmann::json json_imgs = nlohmann::json::parse(docker_imgs);
+        display_img_list(win, json_imgs, rownum);
+    }
+    catch(...)
+    {
+        return;
+    }
+
 }
 void display_cont_panel()
 {
@@ -241,17 +258,6 @@ int main()
     initscr();
 
     
-
-    auto docker_imgs = call_docker_cmd("/v1.42/images/json");
-    if(docker_imgs.starts_with("FAILED"))
-    {
-        std::cout << "received error from list docker images: " << docker_imgs;
-        exit(1);
-    }
-    // std::cout << "output: " << docker_imgs << '\n';
-
-    nlohmann::json json_imgs = nlohmann::json::parse(docker_imgs);
-
 
     int ch;
     struct timespec hund_sleep;
@@ -291,13 +297,14 @@ int main()
         
         char new_ch = getch();
         std::vector<char> accepted_vals = {'c','i','s'};
-        if(std::count(accepted_vals.begin(), accepted_vals.end(), new_ch)) selected_tab = new_ch;
-        
-        int rownum=1;
+        if(std::count(accepted_vals.begin(), accepted_vals.end(), new_ch)) 
+        {
+            selected_tab = new_ch;
+            wclear(docker_window);
+        }
         setup_docker_box(docker_window, selected_tab);
-        display_img_list(docker_window, json_imgs, rownum);
+        
         refresh();
-        char input = getch();
         
     }
 	
