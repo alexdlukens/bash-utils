@@ -280,7 +280,7 @@ int main()
     
     char selected_tab = '\n';
     
-    timeout(50);
+    timeout(250);
     while(true)
     {
         // when terminal is resized, we need to react accordingly
