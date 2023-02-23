@@ -147,7 +147,7 @@ std::string call_docker_cmd(std::string url_path)
 
 }
 
-void display_img_list(WINDOW* win,const nlohmann::json& json_imgs, int& rownum)
+void display_img_list(WINDOW* win, const nlohmann::json& json_imgs, int& rownum)
 {
     std::set<std::string> repo_tags;
     for(auto elem : json_imgs)
@@ -171,11 +171,46 @@ void display_img_list(WINDOW* win,const nlohmann::json& json_imgs, int& rownum)
     wrefresh(win);
 }
 
+void display_cont_list(WINDOW* win,const nlohmann::json& json_conts, int& rownum)
+{
+    std::vector<std::string> containers_info;
+    int count = 0;
+    for(auto elem : json_conts)
+    {
+        std::string elem_string = std::to_string(count++) + ": ";
+        auto names = elem["Names"].get<std::vector<std::string>>();
+        for(const auto name : names)
+        {
+            elem_string.append(name + ", ");
+        }
+        containers_info.push_back(elem_string);
+        // if(elem.contains("Names"))
+        // {
+        //     for(auto tag: elem["Names"])
+        //     {
+        //         repo_tags.insert(tag);
+        //     }
+        // }
+    }
+    if(count == 0)
+    {
+        containers_info.push_back("No actively running containers");
+    }
+    // put a space between previous output and images
+    rownum++;
+    for(auto& str : containers_info)
+    {
+        // std::cout << "\033[" << rownum++ << ";0H" << str;
+       mvwprintw(win, rownum++, 1, "%s", str.c_str());
+    }
+    wrefresh(win);
+}
+
 void setup_docker_box(WINDOW* win, char selected_tab)
 {
-    std::string images_header = "IMAGES";
-    std::string containers_header = "CONTAINERS";
-    std::string stats_header = "STATS";
+    std::string images_header = "(I)mages";
+    std::string containers_header = "(C)ontainers";
+    std::string stats_header = "(S)tats";
 
     int image_offset = containers_header.size() + 1;
     int stats_offset = image_offset + images_header.size() + 1;
@@ -203,6 +238,7 @@ void setup_docker_box(WINDOW* win, char selected_tab)
             wattr_on(win, A_STANDOUT, NULL);
             mvwprintw(win, 0, 0, "%s", containers_header.c_str());
             wattr_off(win, A_STANDOUT, NULL);
+            display_cont_panel(win, 1);
             break;
         case 's':
             wattr_on(win, A_STANDOUT, NULL);
@@ -227,29 +263,45 @@ void display_img_panel(WINDOW* win, int rownum)
         nlohmann::json json_imgs = nlohmann::json::parse(docker_imgs);
         display_img_list(win, json_imgs, rownum);
     }
-    catch(...)
+    catch(const std::exception& e)
     {
-        return;
+        std::cerr << e.what() << '\n';
     }
-
 }
-void display_cont_panel()
-{
 
+void display_cont_panel(WINDOW* win, int rownum)
+{
+    try
+    {
+        auto docker_containers = call_docker_cmd("/v1.42/containers/json");
+        if(docker_containers.starts_with("FAILED"))
+        {
+            std::cout << "received error from list docker containers: " << docker_containers;
+            return;
+        }
+        nlohmann::json json_conts = nlohmann::json::parse(docker_containers);
+        display_cont_list(win, json_conts, rownum);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+    
 }
 
 int main()
 {
     
     auto start_time = std::chrono::high_resolution_clock().now();
-
+    // std::cerr << call_docker_cmd("/v1.42/containers/json") << '\n';
+    // return -1;
     // save cursor position and terminal output
     std::cout << "\033[s";
     std::cout.flush();
 
     std::cout << "\033[?47h";
     std::cout.flush();
-
+    
     system("clear");
     std::cout.flush();
 
